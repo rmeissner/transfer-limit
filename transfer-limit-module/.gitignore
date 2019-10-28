@@ -1,0 +1,9 @@
+build/
+node_modules/
+.DS_Store
+.zos.session
+env/
+.history
+.mnemonic
+.infura
+coverage*
