@@ -6,8 +6,8 @@ chardet==3.0.4
 click==6.6
 colorama==0.3.9
 decorator==4.0.11
-Django==2.0.2
-djangorestframework==3.9.1
+Django==2.2.6
+djangorestframework==3.10.3
 docker-py==1.8.0
 ecdsa==0.11
 flake8==3.5.0
@@ -28,7 +28,6 @@ pexpect==4.4.0
 pluggy==0.6.0
 protobuf==3.0.0a3
 psutil==5.2.2
-psycopg2==2.7.4
 ptyprocess==0.5.2
 py==1.5.2
 py-ecc==1.4.2

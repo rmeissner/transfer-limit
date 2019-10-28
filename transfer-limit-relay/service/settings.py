@@ -76,12 +76,12 @@ WSGI_APPLICATION = 'service.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': os.environ.get('DB_NAME', 'gnosis'),
-        'USER': os.environ.get('DB_USER', 'gnosis'),
+        'ENGINE': os.environ.get('DB_TYPE', 'django.db.backends.sqlite3'), #django.db.backends.postgresql_psycopg2
+        'NAME': os.environ.get('DB_NAME', 'gnosis.db'),
+        'USER': os.environ.get('DB_USER', ''),
         'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'HOST': os.environ.get('DB_HOST', ''),
+        'PORT': os.environ.get('DB_PORT', ''),
     }
 }
 
@@ -122,5 +122,6 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 RELAY_ACCOUNT_PHRASE = os.environ.get('RELAY_ACCOUNT_PHRASE')
-
-DEFAULT_GAS_PRICE = int(os.environ.get('DEFAULT_GAS_PRICE', '100000000'))
+RPC_ENDPOINT = os.environ.get('RPC_ENDPOINT')
+TRANSFER_LIMIT_MODULE = os.environ.get('TRANSFER_LIMIT_MODULE', "0x6039a26436bD08752215523FAd5A007Cd1702D5d")
+DEFAULT_GAS_PRICE = int(os.environ.get('DEFAULT_GAS_PRICE', '10000000000'))

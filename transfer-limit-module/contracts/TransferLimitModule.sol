@@ -81,7 +81,6 @@ contract TransferLimitModule is SignatureDecoder {
     }
 
     function updateLimit(address account, address token, Limit memory limit) private {
-        emit Debug(uint256(limit.spent));
         limitDetails[account][token] = limit;
     }
 
@@ -91,7 +90,6 @@ contract TransferLimitModule is SignatureDecoder {
         updateLimit(msg.sender, token, limit);
     }
 
-    event Debug(uint256 value);
     function executeLimitTransfer(
         GnosisSafe safe,
         address token,
@@ -129,11 +127,11 @@ contract TransferLimitModule is SignatureDecoder {
         checkSignature(signature, transferHashData, safe);
         // Perform
         if (payment > 0) {
-            // transfer payment
+            // Transfer payment
             // solium-disable-next-line security/no-tx-origin
             transfer(safe, paymentToken, tx.origin, payment);
         }
-        // transfer token
+        // Transfer token
         transfer(safe, token, to, amount);
     }
 

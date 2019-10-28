@@ -67,6 +67,7 @@ contract('TransferLimitModule', function(accounts) {
             gnosisSafe.address, token.address, accounts[1], 60, ADDRESS_0, 0, nonce
         )
         let signature = utils.signTransaction(lw, [lw.accounts[0]], transferLimitHash)
+
         utils.logGasUsage(
             'executeLimitTransfer',
             await safeModule.executeLimitTransfer(
