@@ -7,6 +7,5 @@ cache:
 before_script: 
   - cd transfer-limit-module
   - npm install
-  - npx truffle compile
 script:
   - npm test
