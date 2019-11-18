@@ -38,7 +38,49 @@ contract TransferLimitModule is SignatureDecoder {
     // dailyLimits mapping maps token address to daily limit settings.
     mapping(address => mapping (address => Limit)) public limitDetails;
     mapping(address => address[]) public tokens;
+    mapping(address => mapping (uint48 => Delegate)) public delegates;
+    mapping(address => uint48) public delegatesStart;
     bytes32 public domainSeparator;
+
+    function addDelegate(address delegate) public {
+        require(delegate != address(0), "Invalid delegate address");
+        uint48 index = uint48(delegate);
+        require(delegates[msg.sender][index].delegate == address(0), "Delegate already exists");
+        uint48 startIndex = delegatesStart[msg.sender];
+        delegates[msg.sender][index] = Delegate(delegate, 0, startIndex);
+        delegates[msg.sender][startIndex].prev = index;
+        delegatesStart[msg.sender] = index;
+    }
+
+    function removeDelegate(address delegate) public {
+        Delegate memory current = delegates[msg.sender][uint48(delegate)];
+        require(current.delegate != address(0), "Delegate does not exists");
+        delegates[msg.sender][current.prev].next = current.next;
+        delegates[msg.sender][current.next].prev = current.prev;
+    }
+
+    function getDelegates(uint48 start, uint8 pageSize) public view returns (address[] memory out, uint48 next) {
+        out = new address[](pageSize);
+        uint8 i = 0;
+        uint48 initialIndex = (start != 0) ? start : delegatesStart[msg.sender];
+        Delegate memory current = delegates[msg.sender][initialIndex];
+        while(current.delegate != address(0) && i < pageSize) {
+            out[i] = current.delegate;
+            i++;
+            current = delegates[msg.sender][current.next];
+        }
+        next = uint48(current.delegate);
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(out, i)
+        }
+    }
+
+    struct Delegate {
+        address delegate;
+        uint48 prev;
+        uint48 next;
+    }
 
     struct Limit {
         uint96 amount;
@@ -166,7 +208,10 @@ contract TransferLimitModule is SignatureDecoder {
 
     function checkSignature(bytes memory signature, bytes memory transferHashData, GnosisSafe safe) private {
         address signer = recoverSignature(signature, transferHashData);
-        require(safe.isOwner(signer), "safe.isOwner(signer)");
+        require(
+            delegates[msg.sender][uint48(signer)].delegate == signer || safe.isOwner(signer),
+            "delegates[msg.sender][uint48(signer)].delegate == signer || safe.isOwner(signer)"
+        );
     }
 
     function recoverSignature(bytes memory signature, bytes memory transferHashData) private returns (address owner) {

@@ -14,3 +14,6 @@
 
 ### URL
 `http://127.0.0.1:8000/api/1/safes/<safe_address>/tokens/<token_address>/get_limit`
+
+## Push to heroku
+`git subtree push --prefix transfer-limit-relay heroku master`
