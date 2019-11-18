@@ -20,9 +20,10 @@
 
 const HDWalletProvider = require('truffle-hdwallet-provider');
 
-const fs = require('fs');
-const mnemonic = fs.readFileSync(".mnemonic").toString().trim();
-const infuraKey = fs.readFileSync(".infura").toString().trim();
+require('dotenv').config()
+
+const mnemonic = process.env.MNEMONIC
+const token = process.env.INFURA_TOKEN
 
 module.exports = {
   /**
