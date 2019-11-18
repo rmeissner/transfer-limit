@@ -1,4 +1,4 @@
-const utils = require('@gnosis.pm/safe-contracts/test/utils')
+const utils = require('@gnosis.pm/safe-contracts/test/utils/general')
 const { wait, waitUntilBlock } = require('./utils')(web3);
 
 const GnosisSafe = artifacts.require("./GnosisSafe.sol")
@@ -11,7 +11,6 @@ contract('TransferLimitModule', function(accounts) {
     let safeModule
 
     const CALL = 0
-    const DELEGATE = 1
     const ADDRESS_0 = "0x0000000000000000000000000000000000000000"
 
     beforeEach(async function() {
@@ -21,7 +20,7 @@ contract('TransferLimitModule', function(accounts) {
         // Create Master Copies
         gnosisSafe = await GnosisSafe.new()
         safeModule = await TransferLimitModule.new()
-        await gnosisSafe.setup([lw.accounts[0], lw.accounts[1], accounts[1]], 2, ADDRESS_0, "0x")
+        await gnosisSafe.setup([lw.accounts[0], lw.accounts[1], accounts[1]], 2, ADDRESS_0, "0x", ADDRESS_0, ADDRESS_0, 0, ADDRESS_0)
     })
 
     let execTransaction = async function(to, value, data, operation, message) {
@@ -44,7 +43,6 @@ contract('TransferLimitModule', function(accounts) {
         let modules = await gnosisSafe.getModules()
         assert.equal(1, modules.length)
         assert.equal(safeModule.address, modules[0])
-        console.log(modules)
 
         let setLimitData = await safeModule.contract.methods.setLimit(token.address, 100, 60 * 24).encodeABI()
         await execTransaction(safeModule.address, 0, setLimitData, CALL, "set limit")
@@ -79,7 +77,6 @@ contract('TransferLimitModule', function(accounts) {
         assert.equal(60, await token.balanceOf(accounts[1]))
 
         tokenLimit = await safeModule.getTokenLimit(gnosisSafe.address, token.address)
-        console.log(tokenLimit)
         assert.equal(100, tokenLimit[0])
         assert.equal(60, tokenLimit[1])
         assert.equal(24 * 60, tokenLimit[2])
@@ -110,7 +107,6 @@ contract('TransferLimitModule', function(accounts) {
         assert.equal(105, await token.balanceOf(accounts[1]))
 
         tokenLimit = await safeModule.getTokenLimit(gnosisSafe.address, token.address)
-        console.log(tokenLimit)
         assert.equal(100, tokenLimit[0])
         assert.equal(45, tokenLimit[1])
         assert.equal(24 * 60, tokenLimit[2])

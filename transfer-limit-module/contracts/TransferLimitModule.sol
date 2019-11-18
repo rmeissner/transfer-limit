@@ -20,7 +20,7 @@ interface GnosisSafe {
         returns (bool);
 }
 
-contract TransferLimitModule is SignatureDecoder {
+contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
 
     string public constant NAME = "Transfer Limit Module";
     string public constant VERSION = "0.1.0";
@@ -42,40 +42,6 @@ contract TransferLimitModule is SignatureDecoder {
     mapping(address => uint48) public delegatesStart;
     bytes32 public domainSeparator;
 
-    function addDelegate(address delegate) public {
-        require(delegate != address(0), "Invalid delegate address");
-        uint48 index = uint48(delegate);
-        require(delegates[msg.sender][index].delegate == address(0), "Delegate already exists");
-        uint48 startIndex = delegatesStart[msg.sender];
-        delegates[msg.sender][index] = Delegate(delegate, 0, startIndex);
-        delegates[msg.sender][startIndex].prev = index;
-        delegatesStart[msg.sender] = index;
-    }
-
-    function removeDelegate(address delegate) public {
-        Delegate memory current = delegates[msg.sender][uint48(delegate)];
-        require(current.delegate != address(0), "Delegate does not exists");
-        delegates[msg.sender][current.prev].next = current.next;
-        delegates[msg.sender][current.next].prev = current.prev;
-    }
-
-    function getDelegates(uint48 start, uint8 pageSize) public view returns (address[] memory out, uint48 next) {
-        out = new address[](pageSize);
-        uint8 i = 0;
-        uint48 initialIndex = (start != 0) ? start : delegatesStart[msg.sender];
-        Delegate memory current = delegates[msg.sender][initialIndex];
-        while(current.delegate != address(0) && i < pageSize) {
-            out[i] = current.delegate;
-            i++;
-            current = delegates[msg.sender][current.next];
-        }
-        next = uint48(current.delegate);
-        // solium-disable-next-line security/no-inline-assembly
-        assembly {
-            mstore(out, i)
-        }
-    }
-
     struct Delegate {
         address delegate;
         uint48 prev;
@@ -89,6 +55,11 @@ contract TransferLimitModule is SignatureDecoder {
         uint32 lastTransferMin;
         uint16 nonce;
     }
+
+    event AddDelegate(address account, address delegate);
+    event RemoveDelegate(address account, address delegate);
+    event ExecuteLimitTransfer(address account, address token, address to, uint96 value);
+    event SetLimit(address account, address token, uint96 limitAmount, uint16 resetTime);
 
     constructor() public {
         domainSeparator = keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, this));
@@ -111,6 +82,7 @@ contract TransferLimitModule is SignatureDecoder {
         limit.resetTimeMin = resetTimeMin;
         limit.amount = limitAmount;
         updateLimit(msg.sender, token, limit);
+        emit SetLimit(msg.sender, token, limitAmount, resetTimeMin);
     }
 
     function getLimit(address account, address token) private view returns (Limit memory limit) {
@@ -175,6 +147,7 @@ contract TransferLimitModule is SignatureDecoder {
         }
         // Transfer token
         transfer(safe, token, to, amount);
+        emit ExecuteLimitTransfer(address(safe), token, to, amount);
     }
 
     function generateTransferHashData(
@@ -209,7 +182,7 @@ contract TransferLimitModule is SignatureDecoder {
     function checkSignature(bytes memory signature, bytes memory transferHashData, GnosisSafe safe) private {
         address signer = recoverSignature(signature, transferHashData);
         require(
-            delegates[msg.sender][uint48(signer)].delegate == signer || safe.isOwner(signer),
+            delegates[address(safe)][uint48(signer)].delegate == signer || safe.isOwner(signer),
             "delegates[msg.sender][uint48(signer)].delegate == signer || safe.isOwner(signer)"
         );
     }
@@ -233,7 +206,10 @@ contract TransferLimitModule is SignatureDecoder {
                 // The signature data for contract signatures is appended to the concatenated signatures and the offset is stored in s
                 contractSignature := add(add(signature, s), 0x20)
             }
-            require(ISignatureValidator(owner).isValidSignature(transferHashData, contractSignature), "Could not validate EIP-1271 signature");
+            require(
+                ISignatureValidator(owner).isValidSignature(transferHashData, contractSignature) == EIP1271_MAGIC_VALUE,
+                "Could not validate EIP-1271 signature"
+            );
         } else if (v > 30) {
             // To support eth_sign and similar we adjust v and hash the transferHashData with the Ethereum message prefix before applying ecrecover
             owner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", transferHashData)), v - 4, r, s);
@@ -266,5 +242,41 @@ contract TransferLimitModule is SignatureDecoder {
             uint256(limit.lastTransferMin),
             uint256(limit.nonce)
         ];
+    }
+
+    function addDelegate(address delegate) public {
+        require(delegate != address(0), "Invalid delegate address");
+        uint48 index = uint48(delegate);
+        require(delegates[msg.sender][index].delegate == address(0), "Delegate already exists");
+        uint48 startIndex = delegatesStart[msg.sender];
+        delegates[msg.sender][index] = Delegate(delegate, 0, startIndex);
+        delegates[msg.sender][startIndex].prev = index;
+        delegatesStart[msg.sender] = index;
+        emit AddDelegate(msg.sender, delegate);
+    }
+
+    function removeDelegate(address delegate) public {
+        Delegate memory current = delegates[msg.sender][uint48(delegate)];
+        require(current.delegate != address(0), "Delegate does not exists");
+        delegates[msg.sender][current.prev].next = current.next;
+        delegates[msg.sender][current.next].prev = current.prev;
+        emit RemoveDelegate(msg.sender, delegate);
+    }
+
+    function getDelegates(address account, uint48 start, uint8 pageSize) public view returns (address[] memory results, uint48 next) {
+        results = new address[](pageSize);
+        uint8 i = 0;
+        uint48 initialIndex = (start != 0) ? start : delegatesStart[account];
+        Delegate memory current = delegates[account][initialIndex];
+        while(current.delegate != address(0) && i < pageSize) {
+            results[i] = current.delegate;
+            i++;
+            current = delegates[account][current.next];
+        }
+        next = uint48(current.delegate);
+        // solium-disable-next-line security/no-inline-assembly
+        assembly {
+            mstore(results, i)
+        }
     }
 }
