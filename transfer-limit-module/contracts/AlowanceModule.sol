@@ -13,11 +13,6 @@ interface GnosisSafe {
     function execTransactionFromModule(address to, uint256 value, bytes calldata data, Enum.Operation operation)
         external
         returns (bool success);
-
-    function isOwner(address owner)
-        external
-        view
-        returns (bool);
 }
 
 contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
@@ -187,7 +182,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         );
     }
 
-    function recoverSignature(bytes memory signature, bytes memory transferHashData) private returns (address owner) {
+    function recoverSignature(bytes memory signature, bytes memory transferHashData) private view returns (address owner) {
         // If there is no signature data msg.sender should be used
         if (signature.length == 0) return msg.sender;
         // Check that the provided signature data is not too short
