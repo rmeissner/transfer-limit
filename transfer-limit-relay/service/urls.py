@@ -15,10 +15,12 @@ Including another URLconf
 """
 from django.urls import path
 
-from service.api.views import execute_limit_transfer, estimate_limit_transfer, get_limit
+from service.api.views import execute_limit_transfer, get_limit, get_allowance, submit_instant_transfer
 
 urlpatterns = [
     path('api/1/safes/<str:safe>/tokens/<str:token>/execute_limit_transfer', execute_limit_transfer),
     path('api/1/safes/<str:safe>/tokens/<str:token>/get_limit', get_limit),
-    path('api/1/safes/<str:safe>/estimate_limit_transfer', estimate_limit_transfer)
+
+    path('api/1/safes/<str:safe>/delegates/<str:delegate>/tokens/<str:token>/submit_instant_transfer', submit_instant_transfer),
+    path('api/1/safes/<str:safe>/delegates/<str:delegate>/tokens/<str:token>/allowance', get_allowance),
 ]
