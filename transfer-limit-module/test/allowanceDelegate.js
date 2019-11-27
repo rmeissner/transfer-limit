@@ -32,7 +32,7 @@ contract('AllowanceModule delegate', function(accounts) {
         )
     }
 
-    it.only('Execute allowance with delegate', async () => {
+    it('Execute allowance with delegate', async () => {
         const token = await TestToken.new({from: accounts[0]})
         await token.transfer(gnosisSafe.address, 1000, {from: accounts[0]}) 
         //const mintToken = await TestCompound.new(sourceToken.address)
@@ -94,5 +94,14 @@ contract('AllowanceModule delegate', function(accounts) {
         assert.equal(24 * 60, tokenLimit[2])
         assert.ok(tokenLimit[3] > 0)
         assert.equal(2, tokenLimit[4])
+
+        let removeDelegateData = await safeModule.contract.methods.removeDelegate(lw.accounts[4]).encodeABI()
+        await execTransaction(safeModule.address, 0, removeDelegateData, CALL, "remove delegate")
+        let removedAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], token.address)
+        assert.equal(0, removedAllowance[0])
+        assert.equal(0, removedAllowance[1])
+        assert.equal(0, removedAllowance[2])
+        assert.equal(0, removedAllowance[3])
+        assert.equal(2, removedAllowance[4])
     })
 })

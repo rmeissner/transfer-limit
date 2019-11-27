@@ -68,6 +68,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     function setAllowance(address delegate, address token, uint96 allowanceAmount, uint16 resetTimeMin)
         public
     {
+        require(delegates[msg.sender][uint48(delegate)].delegate == delegate, "delegates[msg.sender][uint48(delegate)].delegate == delegate");
         Allowance memory allowance = getAllowance(msg.sender, delegate, token);
         if (allowance.nonce == 0) { // New token
             allowance.nonce = 1; // Nonce should never be 0 once allowance has been activated
@@ -253,6 +254,17 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     function removeDelegate(address delegate) public {
         Delegate memory current = delegates[msg.sender][uint48(delegate)];
         require(current.delegate != address(0), "Delegate does not exists");
+        address[] storage delegateTokens = tokens[msg.sender][delegate];
+        for (uint256 i = 0; i < delegateTokens.length; i++) {
+            address token = delegateTokens[i];
+            // Set all allowance params except the nonce to 0
+            Allowance memory allowance = getAllowance(msg.sender, delegate, token);
+            allowance.amount = 0;
+            allowance.spent = 0;
+            allowance.resetTimeMin = 0;
+            allowance.lastTransferMin = 0;
+            updateAllowance(msg.sender, delegate, token, allowance);
+        }
         delegates[msg.sender][current.prev].next = current.next;
         delegates[msg.sender][current.next].prev = current.prev;
         emit RemoveDelegate(msg.sender, delegate);
