@@ -328,19 +328,18 @@ def submit_instant_transfer(request, safe, delegate, token):
     except Exception:
         return Response({"error": "invalid signature provided (format: hex-string)"}, 400)
 
+    execution_payload = _build_execute_allowance_transfer_payload(
+        safe, token, target, amount, "0x0", 0, delegate, signature
+    )
     try:
-        estimate = _estimate_transaction(ALLOWANCE_LIMIT_MODULE, data = _build_execute_allowance_transfer_payload(
-            safe, token, target, amount, "0x0", 0, delegate, signature
-        ))
+        estimate = _estimate_transaction(ALLOWANCE_LIMIT_MODULE, data = execution_payload)
     except RpcException as e:
-        return Response({"error": "Could not estimate transfer (%s)" % e}, 400)
+        return Response({"error": "Could not estimate transfer with %s (%s)" % (execution_payload, e)}, 400)
 
     try:
         nonce = _get_nonce()
-        tx_hash = _send_transaction(ALLOWANCE_LIMIT_MODULE, nonce, estimate, data = _build_execute_allowance_transfer_payload(
-            safe, token, target, amount, "0x0", 0, delegate, signature
-        ))
+        tx_hash = _send_transaction(ALLOWANCE_LIMIT_MODULE, nonce, estimate, data = execution_payload)
     except RpcException as e:
-        return Response({"error": "Could perform transfer (%s)" % e}, 400)
+        return Response({"error": "Could perform transfer with %s (%s)" % (execution_payload, e)}, 400)
 
     return Response({"hash": tx_hash})
