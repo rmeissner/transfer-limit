@@ -51,10 +51,10 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         uint16 nonce;
     }
 
-    event AddDelegate(address safe, address delegate);
-    event RemoveDelegate(address safe, address delegate);
-    event ExecuteAllowanceTransfer(address safe, address delegate, address token, address to, uint96 value);
-    event SetAllowance(address safe, address delegate, address token, uint96 allowanceAmount, uint16 resetTime);
+    event AddDelegate(address indexed safe, address delegate);
+    event RemoveDelegate(address indexed safe, address delegate);
+    event ExecuteAllowanceTransfer(address indexed safe, address delegate, address token, address to, uint96 value, uint16 nonce);
+    event SetAllowance(address indexed safe, address delegate, address token, uint96 allowanceAmount, uint16 resetTime);
 
     constructor() public {
         domainSeparator = keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, this));
@@ -143,7 +143,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         }
         // Transfer token
         transfer(safe, token, to, amount);
-        emit ExecuteAllowanceTransfer(address(safe), delegate, token, to, amount);
+        emit ExecuteAllowanceTransfer(address(safe), delegate, token, to, amount, allowance.nonce - 1);
     }
 
     function generateTransferHashData(
