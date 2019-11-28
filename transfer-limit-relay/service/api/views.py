@@ -1,59 +1,16 @@
 from __future__ import division
-import json
+
 import string
 
-import math
-import requests
-import rlp
-import time
-from pywallet.utils import HDPrivateKey, HDKey
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from two1.bitcoin.utils import bytes_to_str
 
-from service import settings
-from service.api.ethereum.authentication import get_sender
-from service.api.ethereum.transactions import Transaction
-from service.api.ethereum.utils import parse_int_or_hex, int_to_hex, parse_as_bin, is_numeric, sha3
-from service.settings import RELAY_ACCOUNT_PHRASE, DEFAULT_GAS_PRICE, RPC_ENDPOINT, TRANSFER_LIMIT_MODULE, ALLOWANCE_LIMIT_MODULE
-
-master_key = HDPrivateKey.master_key_from_mnemonic(RELAY_ACCOUNT_PHRASE)
-root_key = HDKey.from_path(master_key, "m/44'/60'/0'/0/0")
-sender = root_key[-1].public_key.address()
-
-
-class RpcException(Exception):
-    pass
-
-
-def _request_headers():
-    return {
-        "Content-Type": "application/json; UTF-8",
-    }
-
-
-def rpc_call(method, params):
-    data = {
-        "id": 1,
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params
-    }
-    return requests.post(RPC_ENDPOINT, data=json.dumps(data)).json()
-
-
-def rpc_batch(calls):
-    data = [{
-        "id": index,
-        "jsonrpc": "2.0",
-        "method": call[0],
-        "params": call[1]
-    } for index, call in enumerate(calls) ]
-    return requests.post(RPC_ENDPOINT, data=json.dumps(data)).json()
-
-
-def rpc_result(method, param):
-    return rpc_call(method, param)["result"]
+from service.api.ethereum.utils import parse_int_or_hex, int_to_hex
+from service.api.services.contracts import call
+from service.api.services.eoa import sender, _estimate_transaction_eoa, _send_transaction_eoa
+from service.api.services.rpc import RpcException, rpc_call
+from service.api.services.safe import _estimate_transaction_safe, _send_transaction_safe
+from service.settings import TRANSFER_LIMIT_MODULE, ALLOWANCE_LIMIT_MODULE, RELAY_SAFE_ADDRESS
 
 
 def get_or_none(model, *args, **kwargs):
@@ -92,45 +49,18 @@ def _build_get_transfer_hash_payload(account, token, to, amount, paymentToken, p
         int_to_hex(nonce)[2:].zfill(64)
 
 
-def _get_nonce():
-    return parse_int_or_hex(rpc_result("eth_getTransactionCount", [sender, "pending"]))
+def _estimate_transaction(address, value=0, data="0x"):
+    if RELAY_SAFE_ADDRESS:
+        return _estimate_transaction_safe(address, value, data)
+    else:
+        return _estimate_transaction_eoa(address, value, data)
 
 
-def _call(address, value=0, data=""):
-    data = {
-        "from": sender,
-        "to": address,
-        "value": "0x0" if value == 0 else int_to_hex(value),
-        "data": data
-    }
-    response = rpc_call("eth_call", [data, "latest"])
-    result = response.get("result")
-    if not result:
-        raise RpcException(response.get("error"))
-    return result
-
-def _estimate_transaction(address, value=0, data=""):
-    data = {
-        "from": sender,
-        "to": address,
-        "value": "0x0" if value == 0 else int_to_hex(value),
-        "data": data
-    }
-    response = rpc_call("eth_estimateGas", [data])
-    result = response.get("result")
-    if not result:
-        raise RpcException(response.get("error"))
-    return parse_int_or_hex(result)
-
-
-def _send_transaction(address, nonce, gas, gas_price=DEFAULT_GAS_PRICE, value=0, data=""):
-    tx = Transaction(nonce, gas_price, gas, address, value, parse_as_bin(data)).sign(
-        bytes_to_str(bytes(root_key[-1])[-32:]))
-    response = rpc_call("eth_sendRawTransaction", ["0x" + bytes_to_str(rlp.encode(tx))])
-    result = response.get("result")
-    if not result:
-        raise RpcException(response.get("error"))
-    return result
+def _send_transaction(address, params, value=0, data="0x"):
+    if RELAY_SAFE_ADDRESS:
+        return _send_transaction_safe(address, params, value, data)
+    else:
+        return _send_transaction_eoa(address, params, value, data)
 
 
 def _validate_address(address):
@@ -143,7 +73,7 @@ def _split_eth_data(eth_data):
 
 
 def _load_limit(safe, token):
-    encoded_limit = _call(TRANSFER_LIMIT_MODULE, data=_build_get_limit_payload(safe, token))
+    encoded_limit = call(TRANSFER_LIMIT_MODULE, data=_build_get_limit_payload(safe, token))
     limit_array = _split_eth_data(encoded_limit[2:])
     return {
         "amount": parse_int_or_hex("0x" + limit_array[0]),
@@ -194,13 +124,12 @@ def get_limit_transfer_hash(request, safe, token ):
 
     try:
         # account, token, to, amount, paymentToken, payment, nonce
-        transferLimitHash = _call(TRANSFER_LIMIT_MODULE, data = _build_get_transfer_hash_payload(
+        transferLimitHash = call(TRANSFER_LIMIT_MODULE, data = _build_get_transfer_hash_payload(
             safe, token, target, amount, "0x0", 0, limit.get("nonce")
         ))
     except RpcException as e:
         return Response({"error": "Could get transfer limit hash (%s)" % e}, 400)
 
-    # nonce = _get_nonce()
     return Response({"hash": transferLimitHash})
 
 
@@ -232,15 +161,14 @@ def execute_limit_transfer(request, safe, token):
         return Response({"error": "invalid signature provided (format: hex-string)"}, 400)
 
     try:
-        estimate = _estimate_transaction(TRANSFER_LIMIT_MODULE, data = _build_execute_transfer_limit_payload(
+        params = _estimate_transaction(TRANSFER_LIMIT_MODULE, data = _build_execute_transfer_limit_payload(
             safe, token, target, amount, "0x0", 0, signature
         ))
     except RpcException as e:
         return Response({"error": "Could not estimate transfer (%s)" % e}, 400)
 
     try:
-        nonce = _get_nonce()
-        tx_hash = _send_transaction(TRANSFER_LIMIT_MODULE, nonce, estimate, data = _build_execute_transfer_limit_payload(
+        tx_hash = _send_transaction(TRANSFER_LIMIT_MODULE, params, data = _build_execute_transfer_limit_payload(
             safe, token, target, amount, "0x0", 0, signature
         ))
     except RpcException as e:
@@ -268,7 +196,7 @@ def _build_execute_allowance_transfer_payload(account, token, to, amount, paymen
 
 
 def _load_allowance(safe, delegate, token):
-    encoded_limit = _call(ALLOWANCE_LIMIT_MODULE, data=_build_get_allowance_payload(safe, delegate, token))
+    encoded_limit = call(ALLOWANCE_LIMIT_MODULE, data=_build_get_allowance_payload(safe, delegate, token))
     limit_array = _split_eth_data(encoded_limit[2:])
     return {
         "amount": parse_int_or_hex("0x" + limit_array[0]),
@@ -309,11 +237,6 @@ def submit_instant_transfer(request, safe, delegate, token):
     if _validate_address(token):
         return Response({"error": "invalid token address (format: <40 hex chars>)"}, 400)
 
-    try:
-        limit = _load_allowance(safe, delegate, token)
-    except RpcException as e:
-        return Response({"error": "Could not fetch allowance (%s)" % e}, 400)
-
     target = request.data.get("target")
     if _validate_address(target):
         return Response({"error": "invalid target address (format: <40 hex chars>)"}, 400)
@@ -332,13 +255,12 @@ def submit_instant_transfer(request, safe, delegate, token):
         safe, token, target, amount, "0x0", 0, delegate, signature
     )
     try:
-        estimate = _estimate_transaction(ALLOWANCE_LIMIT_MODULE, data = execution_payload)
+        params = _estimate_transaction(ALLOWANCE_LIMIT_MODULE, data = execution_payload)
     except RpcException as e:
         return Response({"error": "Could not estimate transfer with %s (%s)" % (execution_payload, e)}, 400)
 
     try:
-        nonce = _get_nonce()
-        tx_hash = _send_transaction(ALLOWANCE_LIMIT_MODULE, nonce, estimate, data = execution_payload)
+        tx_hash = _send_transaction(ALLOWANCE_LIMIT_MODULE, params, data = execution_payload)
     except RpcException as e:
         return Response({"error": "Could perform transfer with %s (%s)" % (execution_payload, e)}, 400)
 

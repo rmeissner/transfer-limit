@@ -179,7 +179,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         address signer = recoverSignature(signature, transferHashData);
         require(
             expectedDelegate == signer && delegates[address(safe)][uint48(signer)].delegate == signer,
-            "expectedDelegate == signer && delegates[msg.sender][uint48(signer)].delegate == signer"
+            "expectedDelegate == signer && delegates[address(safe)][uint48(signer)].delegate == signer"
         );
     }
 
@@ -208,7 +208,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
             );
         } else if (v > 30) {
             // To support eth_sign and similar we adjust v and hash the transferHashData with the Ethereum message prefix before applying ecrecover
-            owner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", transferHashData)), v - 4, r, s);
+            owner = ecrecover(keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", keccak256(transferHashData))), v - 4, r, s);
         } else {
             // Use ecrecover with the messageHash for EOA signatures
             owner = ecrecover(keccak256(transferHashData), v, r, s);
