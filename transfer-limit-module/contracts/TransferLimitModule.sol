@@ -52,7 +52,7 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
         uint96 amount;
         uint96 spent;
         uint16 resetTimeMin; // reset time span is 65k minutes
-        uint32 lastTransferMin;
+        uint32 lastResetMin;
         uint16 nonce;
     }
 
@@ -77,6 +77,8 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
         require(resetTimeMin > 0, "resetTimeMin > 0");
         Limit memory limit = getLimit(msg.sender, token);
         if (limit.resetTimeMin == 0) { // New token
+            // solium-disable-next-line security/no-block-members
+            limit.lastResetMin = uint32(now / 60);
             tokens[msg.sender].push(token);
         }
         limit.resetTimeMin = resetTimeMin;
@@ -88,8 +90,10 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
     function getLimit(address account, address token) private view returns (Limit memory limit) {
         limit = limitDetails[account][token];
         // solium-disable-next-line security/no-block-members
-        if (limit.lastTransferMin <= uint32(now / 60) - limit.resetTimeMin) {
+        uint32 currentMin = uint32(now / 60);
+        if (limit.lastResetMin <= currentMin - limit.resetTimeMin) {
             limit.spent = 0;
+            limit.lastResetMin = currentMin;
         }
         return limit;
     }
@@ -122,8 +126,6 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
         // Check new spent amount and overflow
         require(newSpent > limit.spent && newSpent <= limit.amount, "newSpent > limit.spent && newSpent <= limit.amount");
         limit.spent = newSpent;
-        // solium-disable-next-line security/no-block-members
-        limit.lastTransferMin = uint32(now / 60);
         if (payment > 0) {
             // Use updated limit if token and paymentToken are the same
             Limit memory paymentLimit = paymentToken == token ? limit : getLimit(address(safe), paymentToken);
@@ -131,8 +133,6 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
             // Check new spent amount and overflow
             require(newSpent > paymentLimit.spent && newSpent <= paymentLimit.amount, "newSpent > paymentLimit.spent && newSpent <= paymentLimit.amount");
             paymentLimit.spent = newSpent;
-            // solium-disable-next-line security/no-block-members
-            paymentLimit.lastTransferMin = uint32(now / 60);
             // Update payment limit if different from limit
             if (paymentToken != token) updateLimit(address(safe), paymentToken, paymentLimit);
         }
@@ -239,7 +239,7 @@ contract TransferLimitModule is SignatureDecoder, ISignatureValidatorConstants {
             uint256(limit.amount),
             uint256(limit.spent),
             uint256(limit.resetTimeMin),
-            uint256(limit.lastTransferMin),
+            uint256(limit.lastResetMin),
             uint256(limit.nonce)
         ];
     }

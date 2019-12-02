@@ -54,7 +54,7 @@ contract('TransferLimitModule', function(accounts) {
         assert.equal(100, tokenLimit[0])
         assert.equal(0, tokenLimit[1])
         assert.equal(24 * 60, tokenLimit[2])
-        assert.equal(0, tokenLimit[3])
+        assert.ok(tokenLimit[3] > 0)
         assert.equal(0, tokenLimit[4])
 
         assert.equal(1000, await token.balanceOf(gnosisSafe.address))
@@ -76,11 +76,12 @@ contract('TransferLimitModule', function(accounts) {
         assert.equal(940, await token.balanceOf(gnosisSafe.address))
         assert.equal(60, await token.balanceOf(accounts[1]))
 
+        let previousLimit = tokenLimit[3].toNumber()
         tokenLimit = await safeModule.getTokenLimit(gnosisSafe.address, token.address)
         assert.equal(100, tokenLimit[0])
         assert.equal(60, tokenLimit[1])
         assert.equal(24 * 60, tokenLimit[2])
-        assert.ok(tokenLimit[3] > 0)
+        assert.equal(previousLimit, tokenLimit[3])
         assert.equal(1, tokenLimit[4])
 
         // Check that it fails over limit
@@ -96,21 +97,48 @@ contract('TransferLimitModule', function(accounts) {
             "Should not allow if over the limit"
         )
 
-        await wait(24*60*60)
+        await wait(12*60*60)
+        transferLimitHash = await safeModule.generateTransferHash(
+            gnosisSafe.address, token.address, accounts[1], 40, ADDRESS_0, 0, nonce
+        )
+        signature = utils.signTransaction(lw, [lw.accounts[0]], transferLimitHash)
+        utils.logGasUsage(
+            'executeLimitTransfer',
+            await safeModule.executeLimitTransfer(
+                gnosisSafe.address, token.address, accounts[1], 40, ADDRESS_0, 0, signature
+            )
+        )
+        assert.equal(900, await token.balanceOf(gnosisSafe.address))
+        assert.equal(100, await token.balanceOf(accounts[1]))
+
+        tokenLimit = await safeModule.getTokenLimit(gnosisSafe.address, token.address)
+        assert.equal(100, tokenLimit[0])
+        assert.equal(100, tokenLimit[1])
+        assert.equal(24 * 60, tokenLimit[2])
+        assert.equal(previousLimit, tokenLimit[3])
+        assert.equal(2, tokenLimit[4])
+
+        await wait(12*60*60)
+        nonce = tokenLimit[4]
+        transferLimitHash = await safeModule.generateTransferHash(
+            gnosisSafe.address, token.address, accounts[1], 45, ADDRESS_0, 0, nonce
+        )
+        signature = utils.signTransaction(lw, [lw.accounts[0]], transferLimitHash)
         utils.logGasUsage(
             'executeLimitTransfer',
             await safeModule.executeLimitTransfer(
                 gnosisSafe.address, token.address, accounts[1], 45, ADDRESS_0, 0, signature
             )
         )
-        assert.equal(895, await token.balanceOf(gnosisSafe.address))
-        assert.equal(105, await token.balanceOf(accounts[1]))
+        assert.equal(855, await token.balanceOf(gnosisSafe.address))
+        assert.equal(145, await token.balanceOf(accounts[1]))
 
+        previousLimit = tokenLimit[3].toNumber()
         tokenLimit = await safeModule.getTokenLimit(gnosisSafe.address, token.address)
         assert.equal(100, tokenLimit[0])
         assert.equal(45, tokenLimit[1])
         assert.equal(24 * 60, tokenLimit[2])
-        assert.ok(tokenLimit[3] > 0)
-        assert.equal(2, tokenLimit[4])
+        assert.ok(tokenLimit[3] > previousLimit)
+        assert.equal(3, tokenLimit[4])
     })
 })

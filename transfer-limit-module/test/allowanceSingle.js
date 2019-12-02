@@ -49,7 +49,7 @@ contract('AllowanceModule delegate', function(accounts) {
         assert.equal(1, delegates.results.length)
         assert.equal(lw.accounts[4], delegates.results[0].toLowerCase())
 
-        let setAllowanceData = await safeModule.contract.methods.setAllowance(lw.accounts[4], token.address, 100, 60 * 24).encodeABI()
+        let setAllowanceData = await safeModule.contract.methods.setAllowance(lw.accounts[4], token.address, 100, 0, 0).encodeABI()
         await execTransaction(safeModule.address, 0, setAllowanceData, CALL, "set allowance")
 
         let tokens = await safeModule.getTokens(gnosisSafe.address, lw.accounts[4])
@@ -58,7 +58,7 @@ contract('AllowanceModule delegate', function(accounts) {
         let tokenAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], token.address)
         assert.equal(100, tokenAllowance[0])
         assert.equal(0, tokenAllowance[1])
-        assert.equal(24 * 60, tokenAllowance[2])
+        assert.equal(0, tokenAllowance[2])
         assert.equal(0, tokenAllowance[3])
         assert.equal(1, tokenAllowance[4])
         let unknownAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[3], token.address)
@@ -90,7 +90,7 @@ contract('AllowanceModule delegate', function(accounts) {
         tokenLimit = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], token.address)
         assert.equal(100, tokenLimit[0])
         assert.equal(60, tokenLimit[1])
-        assert.equal(24 * 60, tokenLimit[2])
+        assert.equal(0, tokenLimit[2])
         assert.ok(tokenLimit[3] > 0)
         assert.equal(2, tokenLimit[4])
 
@@ -122,7 +122,7 @@ contract('AllowanceModule delegate', function(accounts) {
         assert.equal(1, delegates.results.length)
         assert.equal(lw.accounts[4], delegates.results[0].toLowerCase())
 
-        let setAllowanceData = await safeModule.contract.methods.setAllowance(lw.accounts[4], ADDRESS_0, web3.utils.toWei("1.0", 'ether'), 60 * 24).encodeABI()
+        let setAllowanceData = await safeModule.contract.methods.setAllowance(lw.accounts[4], ADDRESS_0, web3.utils.toWei("1.0", 'ether'), 0, 0).encodeABI()
         await execTransaction(safeModule.address, 0, setAllowanceData, CALL, "set allowance")
 
         let tokens = await safeModule.getTokens(gnosisSafe.address, lw.accounts[4])
@@ -131,7 +131,7 @@ contract('AllowanceModule delegate', function(accounts) {
         let tokenAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], ADDRESS_0)
         assert.equal(web3.utils.toWei("1.0", 'ether'), tokenAllowance[0])
         assert.equal(0, tokenAllowance[1])
-        assert.equal(24 * 60, tokenAllowance[2])
+        assert.equal(0, tokenAllowance[2])
         assert.equal(0, tokenAllowance[3])
         assert.equal(1, tokenAllowance[4])
 
@@ -157,7 +157,7 @@ contract('AllowanceModule delegate', function(accounts) {
         tokenAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], ADDRESS_0)
         assert.equal(web3.utils.toWei("1.0", 'ether'), tokenAllowance[0])
         assert.equal(web3.utils.toWei("0.001", 'ether'), tokenAllowance[1])
-        assert.equal(24 * 60, tokenAllowance[2])
+        assert.equal(0, tokenAllowance[2])
         assert.ok(tokenAllowance[3] > 0)
         assert.equal(2, tokenAllowance[4])
 
@@ -179,7 +179,7 @@ contract('AllowanceModule delegate', function(accounts) {
         tokenAllowance = await safeModule.getTokenAllowance(gnosisSafe.address, lw.accounts[4], ADDRESS_0)
         assert.equal(web3.utils.toWei("1.0", 'ether'), tokenAllowance[0])
         assert.equal(web3.utils.toWei("0.002", 'ether'), tokenAllowance[1])
-        assert.equal(24 * 60, tokenAllowance[2])
+        assert.equal(0, tokenAllowance[2])
         assert.ok(tokenAllowance[3] > 0)
         assert.equal(3, tokenAllowance[4])
     })

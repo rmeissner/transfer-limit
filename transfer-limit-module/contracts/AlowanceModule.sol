@@ -47,7 +47,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         uint96 amount;
         uint96 spent;
         uint16 resetTimeMin; // reset time span is 65k minutes
-        uint32 lastTransferMin;
+        uint32 lastResetMin;
         uint16 nonce;
     }
 
@@ -65,14 +65,24 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     /// @param token Token contract address.
     /// @param allowanceAmount allowance in smallest token unit.
     /// @param resetTimeMin Time after which the allowance should reset
-    function setAllowance(address delegate, address token, uint96 allowanceAmount, uint16 resetTimeMin)
+    /// @param resetBaseMin Time based on which the reset time should be increased
+    function setAllowance(address delegate, address token, uint96 allowanceAmount, uint16 resetTimeMin, uint32 resetBaseMin)
         public
     {
         require(delegates[msg.sender][uint48(delegate)].delegate == delegate, "delegates[msg.sender][uint48(delegate)].delegate == delegate");
         Allowance memory allowance = getAllowance(msg.sender, delegate, token);
         if (allowance.nonce == 0) { // New token
-            allowance.nonce = 1; // Nonce should never be 0 once allowance has been activated
+            // Nonce should never be 0 once allowance has been activated
+            allowance.nonce = 1;
             tokens[msg.sender][delegate].push(token);
+        }
+        // solium-disable-next-line security/no-block-members
+        uint32 currentMin = uint32(now / 60);
+        if (resetBaseMin > 0) {
+            require(resetBaseMin <= currentMin, "resetBaseMin <= currentMin");
+            allowance.lastResetMin = currentMin - ((currentMin - resetBaseMin) % resetTimeMin);
+        } else if (allowance.lastResetMin == 0) {
+            allowance.lastResetMin = currentMin;
         }
         allowance.resetTimeMin = resetTimeMin;
         allowance.amount = allowanceAmount;
@@ -83,8 +93,10 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     function getAllowance(address safe, address delegate, address token) private view returns (Allowance memory allowance) {
         allowance = allowances[safe][delegate][token];
         // solium-disable-next-line security/no-block-members
-        if (allowance.resetTimeMin > 0 && allowance.lastTransferMin <= uint32(now / 60) - allowance.resetTimeMin) {
+        uint32 currentMin = uint32(now / 60);
+        if (allowance.resetTimeMin > 0 && allowance.lastResetMin <= currentMin - allowance.resetTimeMin) {
             allowance.spent = 0;
+            allowance.lastResetMin = currentMin - ((currentMin - allowance.lastResetMin) % allowance.resetTimeMin);
         }
         return allowance;
     }
@@ -118,8 +130,6 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         // Check new spent amount and overflow
         require(newSpent > allowance.spent && newSpent <= allowance.amount, "newSpent > allowance.spent && newSpent <= allowance.amount");
         allowance.spent = newSpent;
-        // solium-disable-next-line security/no-block-members
-        allowance.lastTransferMin = uint32(now / 60);
         if (payment > 0) {
             // Use updated allowance if token and paymentToken are the same
             Allowance memory paymentAllowance = paymentToken == token ? allowance : getAllowance(address(safe), delegate, paymentToken);
@@ -127,8 +137,6 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
             // Check new spent amount and overflowf
             require(newSpent > paymentAllowance.spent && newSpent <= paymentAllowance.amount, "newSpent > paymentAllowance.spent && newSpent <= paymentAllowance.amount");
             paymentAllowance.spent = newSpent;
-            // solium-disable-next-line security/no-block-members
-            paymentAllowance.lastTransferMin = uint32(now / 60);
             // Update payment allowance if different from allowance
             if (paymentToken != token) updateAllowance(address(safe), delegate, paymentToken, paymentAllowance);
         }
@@ -235,7 +243,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
             uint256(allowance.amount),
             uint256(allowance.spent),
             uint256(allowance.resetTimeMin),
-            uint256(allowance.lastTransferMin),
+            uint256(allowance.lastResetMin),
             uint256(allowance.nonce)
         ];
     }
@@ -244,7 +252,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
         require(delegate != address(0), "Invalid delegate address");
         uint48 index = uint48(delegate);
         // Delegate already exists, nothing to do
-        if(delegates[msg.sender][index].delegate == address(0)) return;
+        if(delegates[msg.sender][index].delegate != address(0)) return;
         uint48 startIndex = delegatesStart[msg.sender];
         delegates[msg.sender][index] = Delegate(delegate, 0, startIndex);
         delegates[msg.sender][startIndex].prev = index;
@@ -255,7 +263,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     function removeDelegate(address delegate) public {
         Delegate memory current = delegates[msg.sender][uint48(delegate)];
         // Delegate doesn't exists, nothing to do
-        if(current.delegate != address(0)) return;
+        if(current.delegate == address(0)) return;
         address[] storage delegateTokens = tokens[msg.sender][delegate];
         for (uint256 i = 0; i < delegateTokens.length; i++) {
             address token = delegateTokens[i];
@@ -264,7 +272,7 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
             allowance.amount = 0;
             allowance.spent = 0;
             allowance.resetTimeMin = 0;
-            allowance.lastTransferMin = 0;
+            allowance.lastResetMin = 0;
             updateAllowance(msg.sender, delegate, token, allowance);
         }
         delegates[msg.sender][current.prev].next = current.next;
