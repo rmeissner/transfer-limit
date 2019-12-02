@@ -243,7 +243,8 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
     function addDelegate(address delegate) public {
         require(delegate != address(0), "Invalid delegate address");
         uint48 index = uint48(delegate);
-        require(delegates[msg.sender][index].delegate == address(0), "Delegate already exists");
+        // Delegate already exists, nothing to do
+        if(delegates[msg.sender][index].delegate == address(0)) return;
         uint48 startIndex = delegatesStart[msg.sender];
         delegates[msg.sender][index] = Delegate(delegate, 0, startIndex);
         delegates[msg.sender][startIndex].prev = index;
@@ -253,7 +254,8 @@ contract AllowanceModule is SignatureDecoder, ISignatureValidatorConstants {
 
     function removeDelegate(address delegate) public {
         Delegate memory current = delegates[msg.sender][uint48(delegate)];
-        require(current.delegate != address(0), "Delegate does not exists");
+        // Delegate doesn't exists, nothing to do
+        if(current.delegate != address(0)) return;
         address[] storage delegateTokens = tokens[msg.sender][delegate];
         for (uint256 i = 0; i < delegateTokens.length; i++) {
             address token = delegateTokens[i];
