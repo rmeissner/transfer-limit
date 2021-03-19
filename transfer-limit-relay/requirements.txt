@@ -6,7 +6,7 @@ chardet==3.0.4
 click==6.6
 colorama==0.3.9
 decorator==4.0.11
-Django==2.2.6
+Django==2.2.18
 djangorestframework==3.10.3
 docker-py==1.8.0
 ecdsa==0.11
