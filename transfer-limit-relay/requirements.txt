@@ -39,7 +39,7 @@ pytest==3.4.1
 python-dateutil==2.6.1
 pytz==2018.3
 pywallet==0.0.7
-PyYAML==3.12
+PyYAML==5.4
 requests==2.11.1
 rlp==0.6.0
 scandir==1.5
