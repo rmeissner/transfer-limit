@@ -29,7 +29,7 @@ pluggy==0.6.0
 protobuf==3.0.0a3
 psutil==5.2.2
 ptyprocess==0.5.2
-py==1.5.2
+py==1.10.0
 py-ecc==1.4.2
 pyaes==1.6.1
 pycodestyle==2.3.1
