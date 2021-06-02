@@ -47,6 +47,6 @@ sha256==0.1
 six==1.10.0
 tabulate==0.8.2
 two1==3.10.8
-urllib3==1.22
+urllib3==1.26.5
 websocket-client==0.47.0
 win-unicode-console==0.5
